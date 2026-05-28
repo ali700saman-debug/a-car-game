@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>3D City Drive</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="icon" href="data:," />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/",
+          "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js",
+          "socket.io-client": "https://unpkg.com/socket.io-client@4.7.5/dist/socket.io.esm.min.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <div id="loadingScreen" class="screen screen--loading">
+        <div class="loadingCard">
+          <div class="loadingTitle">3D City Drive</div>
+          <div id="loadingSub" class="loadingSub">Loading…</div>
+          <div class="progressBar"><div id="progressFill" class="progressFill"></div></div>
+          <div id="progressText" class="progressText">0%</div>
+          <div id="loadingHint" class="loadingHint">Tip: On mobile, rotate your phone for a wider view.</div>
+        </div>
+      </div>
+
+      <canvas id="gameCanvas"></canvas>
+
+      <div id="hud" class="hud hidden" aria-hidden="true">
+        <div class="hudTop">
+          <div class="pill">
+            <span class="pillLabel">TIME</span>
+            <span id="hudTime" class="pillValue">00:00</span>
+          </div>
+          <div class="pill">
+            <span class="pillLabel">HITS</span>
+            <span id="hudHits" class="pillValue">0</span>
+          </div>
+          <div class="pill">
+            <span class="pillLabel">LVL</span>
+            <span id="hudLevel" class="pillValue">1</span>
+          </div>
+          <div class="pill">
+            <span class="pillLabel">PLAYER</span>
+            <span id="hudPlayer" class="pillValue">—</span>
+          </div>
+          <div class="pill">
+            <span class="pillLabel">VEH</span>
+            <span id="hudVehicle" class="pillValue">—</span>
+          </div>
+          <button id="btnPause" class="iconBtn" title="Pause" aria-label="Pause">
+            <span class="icon">⏸</span>
+          </button>
+        </div>
+
+        <div class="hudCenter">
+          <div id="toast" class="toast hidden"></div>
+          <div id="raceHud" class="raceHud hidden" aria-hidden="true">
+            <div class="racePill"><span>Lap</span><b id="raceLap">1/3</b></div>
+            <div class="racePill"><span>Pos</span><b id="racePos">1/4</b></div>
+            <div class="racePill"><span>Time</span><b id="raceTime">0.0s</b></div>
+            <div class="racePill"><span>CP</span><b id="raceCp">1/8</b></div>
+          </div>
+          <div id="mpHud" class="mpHud hidden" aria-hidden="true">
+            <div class="racePill"><span>Room</span><b id="mpHudRoom">—</b></div>
+            <div class="racePill"><span>Players</span><b id="mpHudPlayers">1</b></div>
+            <div class="racePill"><span>Conn</span><b id="mpHudConn">Offline</b></div>
+            <button id="btnMpLeave" class="btn btn--danger btn--compact">Leave</button>
+          </div>
+        </div>
+
+        <div class="hudBottom">
+          <div class="touchControls" id="touchControls">
+            <!-- Small secondary buttons (top-right cluster) -->
+            <div class="touchSecondary">
+              <button id="btnHorn" class="touchBtn touchBtn--small">HORN</button>
+              <button id="btnCam" class="touchBtn touchBtn--small">CAM</button>
+              <button id="btnReset" class="touchBtn touchBtn--small">RESET</button>
+            </div>
+
+            <!-- Main driving controls -->
+            <div class="touchSteer">
+              <button id="btnLeft" class="touchBtn touchBtn--steer">◀</button>
+              <button id="btnRight" class="touchBtn touchBtn--steer">▶</button>
+            </div>
+
+            <div class="touchPedals">
+              <button id="btnGas" class="touchBtn touchBtn--gas touchBtn--primary">GAS</button>
+              <div class="touchPedalSide">
+                <button id="btnBack" class="touchBtn touchBtn--pedal">BACK</button>
+                <button id="btnBrake" class="touchBtn touchBtn--pedal touchBtn--danger">BRAKE</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="helpText">
+            <span class="kbd">W</span>/<span class="kbd">↑</span> Gas,
+            <span class="kbd">S</span>/<span class="kbd">↓</span> Reverse,
+            <span class="kbd">Space</span> Brake,
+            <span class="kbd">A</span>/<span class="kbd">←</span> Left,
+            <span class="kbd">D</span>/<span class="kbd">→</span> Right,
+            <span class="kbd">H</span> Horn,
+            <span class="kbd">R</span> Reset,
+            <span class="kbd">C</span> Camera
+          </div>
+
+          <div id="speedo" class="speedo">
+            <div class="speedoRing"></div>
+            <div class="speedoInner">
+              <div id="speedoSpeed" class="speedoSpeed">0</div>
+              <div class="speedoUnit">km/h</div>
+              <div id="speedoGear" class="speedoGear">N</div>
+            </div>
+            <div class="speedoBadges">
+              <div class="badge"><span class="badgeLabel">HITS</span><span id="speedoHits" class="badgeValue">0</span></div>
+              <div class="badge"><span class="badgeLabel">MODE</span><span id="speedoMode" class="badgeValue">FREE</span></div>
+              <div class="badge"><span class="badgeLabel">OBJ</span><span id="speedoObj" class="badgeValue">Drive freely</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="menuRoot" class="uiLayer">
+        <div id="mainMenu" class="screen">
+          <div class="menuBg">
+            <div class="menuBgGlow"></div>
+            <div class="menuBgGrid"></div>
+          </div>
+          <div class="menuCard menuCard--hero">
+            <div class="menuTitle">3D City Drive</div>
+            <div class="menuSubtitle">Open World Driving Simulator</div>
+            <div class="kBanner" aria-hidden="true"></div>
+            <div class="menuHeroHint">Tip: The car behind the menu matches your selected vehicle.</div>
+
+            <div class="menuButtons">
+              <button id="btnFreeDrive" class="btn btn--primary">Free Drive</button>
+              <button id="btnMultiplayer" class="btn">Multiplayer Online</button>
+              <button id="btnRaceMode" class="btn">Race Mode</button>
+              <button id="btnGarage" class="btn">Garage</button>
+              <button id="btnProfile" class="btn">Profile / Login</button>
+              <button id="btnSettings" class="btn">Settings</button>
+              <button id="btnHowToPlay" class="btn">How to Play</button>
+              <button id="btnChallenges" class="btn btn--ghost">City Challenges</button>
+            </div>
+
+            <div class="menuFooter">
+              <div class="small">PC + Mobile • Smooth arcade driving • Local saves</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="profileMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard">
+            <div class="menuTitle">Profile</div>
+            <div class="menuSubtitle">Enter your player name to continue (saved locally).</div>
+            <div class="formCol">
+              <input id="inputPlayerName" class="textInput" type="text" maxlength="18" placeholder="Your name" />
+              <button id="btnProfileContinue" class="btn btn--primary">Continue</button>
+              <div class="small">No online login. Saved in your browser.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="howToPlayMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard menuCard--wide">
+            <div class="menuTitle">How to Play</div>
+            <div class="menuSubtitle">Controls</div>
+            <div class="howGrid">
+              <div class="howCol">
+                <div class="howHead">Keyboard</div>
+                <div class="howLine"><span class="kbd">W</span> Gas</div>
+                <div class="howLine"><span class="kbd">S</span> Reverse</div>
+                <div class="howLine"><span class="kbd">A</span> Left</div>
+                <div class="howLine"><span class="kbd">D</span> Right</div>
+                <div class="howLine"><span class="kbd">Space</span> Brake</div>
+                <div class="howLine"><span class="kbd">H</span> Horn</div>
+                <div class="howLine"><span class="kbd">R</span> Reset car</div>
+                <div class="howLine"><span class="kbd">C</span> Camera</div>
+              </div>
+              <div class="howCol">
+                <div class="howHead">Mobile</div>
+                <div class="howLine"><span class="pillMini">GAS</span> Accelerate</div>
+                <div class="howLine"><span class="pillMini">BRAKE</span> Brake</div>
+                <div class="howLine"><span class="pillMini">BACK</span> Reverse</div>
+                <div class="howLine"><span class="pillMini">◀ / ▶</span> Steer</div>
+                <div class="howLine"><span class="pillMini">HORN</span> Honk</div>
+                <div class="howLine"><span class="pillMini">RESET</span> Upright / Unstuck</div>
+                <div class="howLine"><span class="pillMini">CAM</span> Toggle camera</div>
+              </div>
+            </div>
+            <div class="row">
+              <button id="btnHowBack" class="btn">Back</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="multiplayerMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard menuCard--wide">
+            <div class="menuTitle">Multiplayer</div>
+            <div class="menuSubtitle">Create or join a room and drive together in the city.</div>
+            <div class="settingsGrid">
+              <label class="toggleRow">
+                <span>Name</span>
+                <input id="mpName" class="textInput" type="text" maxlength="18" placeholder="Your name" />
+              </label>
+              <label class="toggleRow">
+                <span>Room Code</span>
+                <input id="mpRoom" class="textInput" type="text" maxlength="10" placeholder="e.g. K7P3Q" />
+              </label>
+              <label class="toggleRow">
+                <span>Server</span>
+                <input id="mpServerUrl" class="textInput" type="text" placeholder="http://localhost:3000" />
+              </label>
+              <div class="toggleRow">
+                <span>Status</span>
+                <span id="mpStatus" class="pillValue">Offline</span>
+              </div>
+            </div>
+            <div class="row">
+              <button id="btnMpCreate" class="btn btn--primary">Create Room</button>
+              <button id="btnMpJoin" class="btn">Join Room</button>
+              <button id="btnMpBack" class="btn">Back</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="garageMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard menuCard--wide">
+            <div id="carSelectTitle" class="menuTitle">Choose Your Car</div>
+            <div id="carSelectSubtitle" class="menuSubtitle">Pick a car and color, then start driving.</div>
+
+            <div class="carSelectLayout">
+              <div class="carPreviewPanel">
+                <div id="carPreviewSwatch" class="carPreviewSwatch"></div>
+                <div id="carPreviewName" class="carPreviewName">Sport Coupe</div>
+                <div id="carPreviewDesc" class="carPreviewDesc">Fast, sharp handling</div>
+
+                <div class="statBars">
+                  <div class="statRow"><span>Speed</span><div class="bar"><div id="barSpeed" class="fill"></div></div></div>
+                  <div class="statRow"><span>Accel</span><div class="bar"><div id="barAccel" class="fill"></div></div></div>
+                  <div class="statRow"><span>Handling</span><div class="bar"><div id="barHandling" class="fill"></div></div></div>
+                  <div class="statRow"><span>Brake</span><div class="bar"><div id="barBrake" class="fill"></div></div></div>
+                </div>
+
+                <div class="colorRow">
+                  <button class="colorChip" data-color="blue" style="background:#1676ff"></button>
+                  <button class="colorChip" data-color="red" style="background:#ff4d6d"></button>
+                  <button class="colorChip" data-color="black" style="background:#0e1118"></button>
+                  <button class="colorChip" data-color="white" style="background:#f5f7ff"></button>
+                  <button class="colorChip" data-color="yellow" style="background:#ffd24b"></button>
+                  <button class="colorChip" data-color="green" style="background:#43d17a"></button>
+                  <button class="colorChip" data-color="purple" style="background:#8a5cff"></button>
+                  <button class="colorChip" data-color="silver" style="background:#b7c7dd"></button>
+                  <button class="colorChip" data-color="kurdistan" title="Kurdistan Theme" style="background:linear-gradient(180deg,#d83a2f 0%,#d83a2f 33%,#f4f6fb 33%,#f4f6fb 66%,#1fa05a 66%,#1fa05a 100%); border-color:rgba(243,200,63,.7)"></button>
+                </div>
+
+                <div class="row">
+                  <button id="btnPrevCar" class="btn">Previous</button>
+                  <button id="btnNextCar" class="btn">Next</button>
+                </div>
+                <div class="row">
+                  <button id="btnSelectCar" class="btn">Select Car</button>
+                  <button id="btnStartDriving" class="btn btn--primary" disabled>Start Driving</button>
+                </div>
+              </div>
+
+              <div>
+                <div class="menuSubtitle">All cars</div>
+                <div id="carGrid" class="carGrid"></div>
+              </div>
+            </div>
+
+            <div class="row">
+              <button id="btnGarageBack" class="btn">Back</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="challengesMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard menuCard--wide">
+            <div class="menuTitle">City Challenges</div>
+            <div id="levelsGrid" class="levelsGrid"></div>
+            <div class="row">
+              <button id="btnChallengesBack" class="btn">Back</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="raceSetupMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard menuCard--wide">
+            <div class="menuTitle">Race Setup</div>
+            <div id="raceSelectedCar" class="menuSubtitle">Car: —</div>
+            <div class="settingsGrid">
+              <label class="toggleRow">
+                <span>Opponents</span>
+                <select id="selectRaceOpponents" class="select">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                </select>
+              </label>
+              <label class="toggleRow">
+                <span>Laps</span>
+                <select id="selectRaceLaps" class="select">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </label>
+              <label class="toggleRow">
+                <span>Difficulty</span>
+                <select id="selectRaceDifficulty" class="select">
+                  <option value="easy">Easy</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </label>
+              <div class="toggleRow">
+                <span>Best</span>
+                <span id="raceBestText" class="pillValue">—</span>
+              </div>
+            </div>
+            <div class="row">
+              <button id="btnRaceStart" class="btn btn--primary">Start Race</button>
+              <button id="btnRaceBack" class="btn">Back</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="settingsMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard menuCard--wide">
+            <div class="menuTitle">Garage / Settings</div>
+            <div class="settingsGrid">
+              <label class="toggleRow">
+                <span>Sound</span>
+                <input id="toggleSound" type="checkbox" />
+              </label>
+              <label class="toggleRow">
+                <span>Traffic</span>
+                <input id="toggleTraffic" type="checkbox" checked />
+              </label>
+              <label class="toggleRow">
+                <span>Pedestrians</span>
+                <input id="togglePedestrians" type="checkbox" />
+              </label>
+              <label class="toggleRow">
+                <span>Kurdistan Theme</span>
+                <input id="toggleKurdistanTheme" type="checkbox" checked />
+              </label>
+              <label class="toggleRow">
+                <span>Time of Day</span>
+                <select id="selectTimeOfDay" class="select">
+                  <option value="day" selected>Day</option>
+                  <option value="sunset">Sunset</option>
+                  <option value="night">Night</option>
+                </select>
+              </label>
+              <label class="toggleRow">
+                <span>Engine</span>
+                <input id="toggleEngine" type="checkbox" checked />
+              </label>
+              <label class="toggleRow">
+                <span>Engine Volume</span>
+                <input id="sliderEngineVol" type="range" min="0" max="1" step="0.01" value="0.25" />
+              </label>
+              <label class="toggleRow">
+                <span>SFX Volume</span>
+                <input id="sliderSfxVol" type="range" min="0" max="1" step="0.01" value="0.7" />
+              </label>
+              <label class="toggleRow">
+                <span>Music Volume</span>
+                <input id="sliderMusicVol" type="range" min="0" max="1" step="0.01" value="0.25" />
+              </label>
+              <label class="toggleRow">
+                <span>Shadows</span>
+                <input id="toggleShadows" type="checkbox" checked />
+              </label>
+              <label class="toggleRow">
+                <span>Quality</span>
+                <select id="selectQuality" class="select">
+                  <option value="low">Low</option>
+                  <option value="med" selected>Medium</option>
+                  <option value="high">High</option>
+                  <option value="ultra">Ultra</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <button id="btnResetProgress" class="btn btn--danger">Reset Progress</button>
+              <button id="btnSettingsBack" class="btn">Back</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="pauseMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard">
+            <div class="menuTitle">Paused</div>
+            <button id="btnResume" class="btn btn--primary">Resume</button>
+            <button id="btnResetCar" class="btn">Reset Car</button>
+            <button id="btnRestart" class="btn">Restart</button>
+            <button id="btnPauseGarage" class="btn">Garage</button>
+            <button id="btnPauseSettings" class="btn">Settings</button>
+            <button id="btnQuit" class="btn">Quit to Menu</button>
+          </div>
+        </div>
+
+        <div id="resultMenu" class="screen hidden" aria-hidden="true">
+          <div class="menuCard">
+            <div id="resultTitle" class="menuTitle">Level Complete</div>
+            <div id="starRow" class="starRow" aria-label="Stars"></div>
+            <div id="resultStats" class="menuSubtitle"></div>
+            <button id="btnNext" class="btn btn--primary">Next</button>
+            <button id="btnResultRestart" class="btn">Restart</button>
+            <button id="btnResultQuit" class="btn">Levels</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main entry (ES Modules) -->
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
